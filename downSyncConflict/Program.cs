@@ -1,4 +1,5 @@
 ﻿using downSyncConflict;
+using static System.Reflection.Metadata.BlobBuilder;
 
 List<EJob> GetSaveJobsDB()
 {
@@ -32,10 +33,10 @@ List<XPMJob> GetXPMJobsFromAPI()
         XPMJob job = new XPMJob
         {
             Id = i,
-            Name = i == 2 ? $"heee" : $"Job Name{i}",
-            Status = GetRandomStatus(1),
-            Description = $"Job Description{i}",
-            Budget = 100 * i,
+            Title = i == 2 ? $"heee" : $"Job Name{i}",
+            State = GetRandomStatus(1),
+            JobDescription = $"Job Description{i}",
+            JobBudget = i == 3 ? 100 * i * 2 : 100 * i
         };
 
         dummyData.Add(job);
@@ -53,80 +54,50 @@ string GetRandomStatus(int index=0)
 }
 
 
-void Solution1()
+void Solution3()
 {
-
     var ejobs = GetSaveJobsDB();
 
     var xpmjobs = GetXPMJobsFromAPI();
 
     var conflictJobs = new List<JobConflict>();
 
+
+    List<PropertyMapping> propertyMappings = new List<PropertyMapping>
+    {
+        new PropertyMapping { ProviderPropertyName = nameof(XPMJob.State), WXFPropertyName =  nameof(EJob.Status), CustomFieldName = "Job Status" },       // Map "State" in XPMJob to "Status" in EJob
+        new PropertyMapping { ProviderPropertyName = nameof(XPMJob.JobBudget), WXFPropertyName =  nameof(EJob.Budget) },  
+        new PropertyMapping { ProviderPropertyName =  nameof(XPMJob.Title),  WXFPropertyName =  nameof(EJob.Name), CustomFieldName = "Job Name" }
+    };
+
+    var jobComparer = new PropertyComparer<XPMJob, EJob>(propertyMappings);
+
+
     foreach (var xpmjob in xpmjobs)
     {
-        List<ChangedProperty> changeProps = new();
-
-        var job = ejobs.Where(x => x.Id == xpmjob.Id).FirstOrDefault();
+        var job = ejobs.FirstOrDefault(x => x.Id == xpmjob.Id);
 
         if (job == null)
         {
             continue;
         }
 
-        if (!xpmjob.Name.Equals(job.Name))
+        var changeProps = jobComparer.Compare(xpmjob, job);
+
+        if (!changeProps.Any())
         {
-            changeProps.Add(new ChangedProperty
-            {
-                FieldName = nameof(BaseJob.Name),
-                OldValue = job.Name,
-                NewValue = xpmjob.Name
-            });
+            continue;
         }
 
-        if (!xpmjob.Status.Equals(job.Status))
+        conflictJobs.Add(new JobConflict
         {
-            changeProps.Add(new ChangedProperty
-            {
-                FieldName = nameof(BaseJob.Status),
-                OldValue = job.Status,
-                NewValue = xpmjob.Status
-            });
-        }
-
-        if (!xpmjob.Description.Equals(job.Description))
-        {
-            changeProps.Add(new ChangedProperty
-            {
-                FieldName = nameof(BaseJob.Description),
-                OldValue = job.Description,
-                NewValue = xpmjob.Description
-            });
-        }
-
-        if (xpmjob.Budget != job.Budget)
-        {
-            changeProps.Add(new ChangedProperty
-            {
-                FieldName = nameof(BaseJob.Budget),
-                OldValue = job.Budget.ToString(),
-                NewValue = xpmjob.Budget.ToString()
-            });
-        }
-
-
-        if (changeProps.Any())
-        {
-            conflictJobs.Add(new JobConflict
-            {
-                Id = xpmjob.Id,
-                Name = xpmjob.Name,
-                Status = xpmjob.Status,
-                Description = xpmjob.Description,
-                Budget = xpmjob.Budget,
-                ChangedProperties = changeProps,
-            });
-        }
-
+            Id = xpmjob.Id,
+            Name = xpmjob.Title,
+            Status = xpmjob.State,
+            Description = xpmjob.JobDescription,
+            Budget = xpmjob.JobBudget,
+            ChangedProperties = changeProps,
+        });
     }
 
     foreach (var conflictJob in conflictJobs)
@@ -138,48 +109,6 @@ void Solution1()
     }
 }
 
-
-void Solution2()
-{
-    var ejobs = GetSaveJobsDB();
-
-    var xpmjobs = GetXPMJobsFromAPI();
-
-    var conflictJobs = new List<JobConflict>();
+Solution3();
 
 
-    var jobComparer = new JobComparer<BaseJob>();
-
-    foreach (var xpmjob in xpmjobs)
-    {
-        var job = ejobs.FirstOrDefault(x => x.Id == xpmjob.Id);
-
-        if (job != null)
-        {
-            var changeProps = jobComparer.Compare(job, xpmjob);
-
-            if (changeProps.Any())
-            {
-                conflictJobs.Add(new JobConflict
-                {
-                    Id = xpmjob.Id,
-                    Name = xpmjob.Name,
-                    Status = xpmjob.Status,
-                    Description = xpmjob.Description,
-                    Budget = xpmjob.Budget,
-                    ChangedProperties = changeProps,
-                });
-            }
-        }
-    }
-
-    foreach (var conflictJob in conflictJobs)
-    {
-
-        Console.WriteLine(conflictJob);
-        Console.WriteLine("-------");
-
-    }
-}
-
-Solution2();
